@@ -1,144 +1,111 @@
-const tasksDatabase = [
-  { id: 1, title: "Setup Express Server", completed: true },
-  { id: 2, title: "Build the GET Endpoints", completed: false },
-];
+import prisma from "../lib/prisma.js"; 
 
 // 1. GET ALL TASKS
-export const getAllTasks = (req, res) => {
-  res.status(200).json({
-    status: "success",
-    results: tasksDatabase.length,
-    data: {
-      tasks: tasksDatabase,
-    },
-  });
+export const getAllTasks = async (req, res, next) => {
+  try {
+    const tasks = await prisma.task.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+    res.status(200).json({ success: true, data: tasks });
+  } catch (error) {
+    next(error); 
+  }
 };
 
 // 2. GET SINGLE TASK BY ID
-export const getTaskById = (req, res) => {
-  
-  const taskId = Number(req.params.id);
+export const getTaskById = async (req, res, next) => {
+  try {
+    const taskId = parseInt(req.params.id);
 
-
-  const task = tasksDatabase.find((t) => t.id === taskId);
-
-  // Safeguard: If the task doesn't exist, return a 404 immediately
-  if (!task) {
-    return res.status(404).json({
-      status: "fail",
-      message: `Task with ID ${taskId} not found.`,
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
     });
-  }
 
-  res.status(200).json({
-    status: "success",
-    data: {
-      task,
-    },
-  });
-};
-
-
-// 3. CREATE A NEW TASK (POST)
-export const createTask = (req, res) => {
-    const { title, completed } = req.body;
-
-   
-    if (!title || typeof title !== 'string' || title.trim() === '') {
-        return res.status(400).json({
-            status: "fail",
-            message: "Validation Error: 'title' is required and must be a non-empty string."
-        });
-    }
-
-   
-    const newId = tasksDatabase.length > 0 
-        ? Math.max(...tasksDatabase.map(t => t.id)) + 1 
-        : 1;
-
-  
-    const newTask = {
-        id: newId,
-        title: title.trim(),
-        completed: typeof completed === 'boolean' ? completed : false // default to false if not provided
-    };
-
-   
-    tasksDatabase.push(newTask);
-
-    res.status(201).json({
-        status: "success",
-        data: {
-            task: newTask
-        }
-    });
-};
-
-// 4. UPDATE A TASK (PATCH)
-export const updateTask = (req, res) => {
-    const taskId = Number(req.params.id);
-    const { title, completed } = req.body;
-
-    
-    const task = tasksDatabase.find(t => t.id === taskId);
-
-   
     if (!task) {
-        return res.status(404).json({
-            status: "fail",
-            message: `Task with ID ${taskId} not found.`
-        });
+      return res
+        .status(404)
+        .json({ success: false, message: "Task not found" });
     }
 
-    // Update only the fields that were provided in the request body
-    if (title !== undefined) {
-        if (typeof title !== 'string' || title.trim() === '') {
-            return res.status(400).json({
-                status: "fail",
-                message: "Validation Error: 'title' must be a non-empty string."
-            });
-        }
-        task.title = title.trim();
-    }
-
-    if (completed !== undefined) {
-        if (typeof completed !== 'boolean') {
-            return res.status(400).json({
-                status: "fail",
-                message: "Validation Error: 'completed' must be a boolean value."
-            });
-        }
-        task.completed = completed;
-    }
-
-    // Return the updated task
-    res.status(200).json({
-        status: "success",
-        data: {
-            task
-        }
-    });
+    res.status(200).json({ success: true, data: task });
+  } catch (error) {
+    next(error);
+  }
 };
 
-// 5. DELETE A TASK (DELETE)
-export const deleteTask = (req, res) => {
-    const taskId = Number(req.params.id);
+// 3. CREATE A NEW TASK
+export const createTask = async (req, res, next) => {
+  try {
+    const { title } = req.body;
 
-    
-    const taskIndex = tasksDatabase.findIndex(t => t.id === taskId);
-
-    if (taskIndex === -1) {
-        return res.status(404).json({
-            status: "fail",
-            message: `Task with ID ${taskId} not found.`
-        });
+    if (!title) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Title is required" });
     }
 
-    // Remove the item from our in-memory array
-    tasksDatabase.splice(taskIndex, 1);
-
-    res.status(204).json({
-        status: "success",
-        data: null
+    const newTask = await prisma.task.create({
+      data: { title },
     });
+
+    res.status(201).json({ success: true, data: newTask });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 4. UPDATE AN EXISTING TASK
+export const updateTask = async (req, res, next) => {
+  try {
+    const taskId = parseInt(req.params.id);
+    const { title, completed } = req.body;
+
+    // Optional: Check if task exists first to return a clean 404
+    const existingTask = await prisma.task.findUnique({
+      where: { id: taskId },
+    });
+    if (!existingTask) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Task not found" });
+    }
+
+    const updatedTask = await prisma.task.update({
+      where: { id: taskId },
+      data: {
+        ...(title !== undefined && { title }),
+        ...(completed !== undefined && { completed }),
+      },
+    });
+
+    res.status(200).json({ success: true, data: updatedTask });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 5. DELETE A TASK
+export const deleteTask = async (req, res, next) => {
+  try {
+    const taskId = parseInt(req.params.id);
+
+    const existingTask = await prisma.task.findUnique({
+      where: { id: taskId },
+    });
+    if (!existingTask) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Task not found" });
+    }
+
+    await prisma.task.delete({
+      where: { id: taskId },
+    });
+
+    res
+      .status(200)
+      .json({ success: true, message: "Task deleted successfully" });
+  } catch (error) {
+    next(error);
+  }
 };
