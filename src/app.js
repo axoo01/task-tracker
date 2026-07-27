@@ -11,7 +11,7 @@ app.use(requestLogger);
 
 app.use("/tasks", taskRouter);
 
-// A simple root health-check endpoint
+
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "success",

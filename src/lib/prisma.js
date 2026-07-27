@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 
-// Instantiate a single global instance of PrismaClient
+
 const prisma = new PrismaClient({
   log:
     process.env.NODE_ENV === "development"
